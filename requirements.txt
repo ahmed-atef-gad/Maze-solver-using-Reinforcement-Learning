@@ -1,0 +1,6 @@
+numpy==1.26.4
+gym==0.26.2
+pygame==2.6.1
+matplotlib==3.8.4
+pyyaml==6.0.2
+tqdm==4.67.1
