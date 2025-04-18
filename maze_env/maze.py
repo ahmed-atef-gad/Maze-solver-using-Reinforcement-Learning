@@ -11,7 +11,7 @@ class Maze:
         self.goal = (height-1, width-1)
         self.moving_obstacles: List[Tuple[int, int, int, int]] = []  # (row, col, dr, dc)
         self._create_maze()
-        self._add_moving_obstacles(num_moving_obstacles)
+        # self._add_moving_obstacles(num_moving_obstacles)
         
     def _create_maze(self):
         """Create a maze with guaranteed path to goal"""
@@ -25,7 +25,8 @@ class Maze:
         self.grid[-1, :-1] = 1                   # Bottom wall (except last cell)
         self.grid[0, 1] = 0
         self.grid[1, 0] = 0                      
-        self.grid[-1, 8] = 0                  
+        self.grid[-1, 8] = 0     
+        self.grid[-1, -1] = 0           
         # Create a winding path to goal
         path = [
             (-1,8),(1,0),(0,1),(1, 1), (1, 2), (1, 3),             # Rightward path
@@ -45,47 +46,47 @@ class Maze:
                     self.grid[row, col] = 1
                     break
         
-    def _add_moving_obstacles(self, num_obstacles: int):
-        """Add obstacles that move in set directions"""
-        for _ in range(num_obstacles):
-            while True:
-                row = np.random.randint(1, self.height-1)
-                col = np.random.randint(1, self.width-1)
-                # Ensure not placed on static wall or start/goal
-                if self.grid[row, col] == 0 and (row, col) != self.start and (row, col) != self.goal:
-                    dr, dc = [(0, 1), (0, -1), (1, 0), (-1, 0)][np.random.randint(4)]
-                    steps_to_change = np.random.randint(3, 7)  # Random steps before changing direction
-                    self.moving_obstacles.append((row, col, dr, dc, steps_to_change))
-                    break
+    # def _add_moving_obstacles(self, num_obstacles: int):
+    #     """Add obstacles that move in set directions"""
+    #     for _ in range(num_obstacles):
+    #         while True:
+    #             row = np.random.randint(1, self.height-1)
+    #             col = np.random.randint(1, self.width-1)
+    #             # Ensure not placed on static wall or start/goal
+    #             if self.grid[row, col] == 0 and (row, col) != self.start and (row, col) != self.goal:
+    #                 dr, dc = [(0, 1), (0, -1), (1, 0), (-1, 0)][np.random.randint(4)]
+    #                 steps_to_change = np.random.randint(3, 7)  # Random steps before changing direction
+    #                 self.moving_obstacles.append((row, col, dr, dc, steps_to_change))
+    #                 break
 
-    def update_moving_obstacles(self):
-        """Update positions of moving obstacles"""
-        new_obstacles = []
-        for row, col, dr, dc, steps_to_change in self.moving_obstacles:
-            # Try to move in current direction
-            new_row, new_col = row + dr, col + dc
+    # def update_moving_obstacles(self):
+    #     """Update positions of moving obstacles"""
+    #     new_obstacles = []
+    #     for row, col, dr, dc, steps_to_change in self.moving_obstacles:
+    #         # Try to move in current direction
+    #         new_row, new_col = row + dr, col + dc
 
-            # Check if new position is out of bounds or hits a wall
-            if (new_row < 0 or new_row >= self.height or
-                new_col < 0 or new_col >= self.width or
-                self.grid[new_row, new_col] == 1):
-                # Reverse direction if hitting wall or border
-                dr, dc = -dr, -dc
-                new_row, new_col = row + dr, col + dc
+    #         # Check if new position is out of bounds or hits a wall
+    #         if (new_row < 0 or new_row >= self.height or
+    #             new_col < 0 or new_col >= self.width or
+    #             self.grid[new_row, new_col] == 1):
+    #             # Reverse direction if hitting wall or border
+    #             dr, dc = -dr, -dc
+    #             new_row, new_col = row + dr, col + dc
 
-            # Randomly change direction after a certain number of steps
-            steps_to_change -= 1
-            if steps_to_change <= 0:
-                dr, dc = [(0, 1), (0, -1), (1, 0), (-1, 0)][np.random.randint(4)]
-                steps_to_change = np.random.randint(3, 7)
+    #         # Randomly change direction after a certain number of steps
+    #         steps_to_change -= 1
+    #         if steps_to_change <= 0:
+    #             dr, dc = [(0, 1), (0, -1), (1, 0), (-1, 0)][np.random.randint(4)]
+    #             steps_to_change = np.random.randint(3, 7)
 
-            # Ensure the new position is within bounds
-            new_row = max(0, min(self.height - 1, new_row))
-            new_col = max(0, min(self.width - 1, new_col))
+    #         # Ensure the new position is within bounds
+    #         new_row = max(0, min(self.height - 1, new_row))
+    #         new_col = max(0, min(self.width - 1, new_col))
 
-            new_obstacles.append((new_row, new_col, dr, dc, steps_to_change))
+    #         new_obstacles.append((new_row, new_col, dr, dc, steps_to_change))
 
-        self.moving_obstacles = new_obstacles
+    #     self.moving_obstacles = new_obstacles
     
     def is_valid_position(self, row: int, col: int) -> bool:
         """Check if position is valid (not wall and not moving obstacle)"""
@@ -103,14 +104,11 @@ class Maze:
     def get_reward(self, row: int, col: int) -> float:
         """Get reward for current position"""
         if (row, col) == self.goal:
-            return 20.0  # High reward for reaching the goal
-
+            return 100.0  # Higher reward for reaching the goal
+        
         # Calculate Manhattan distance to the goal
         current_distance = abs(row - self.goal[0]) + abs(col - self.goal[1])
-        previous_distance = abs(self.start[0] - self.goal[0]) + abs(self.start[1] - self.goal[1])
-
-        # Reward for moving closer to the goal
-        if current_distance < previous_distance:
-            return 1.0  # Positive reward for reducing distance
-
-        return -1.0  # Stronger negative reward for each step
+        max_distance = self.width + self.height
+        
+        # Stronger signal for getting closer to the goal
+        return -0.1 * current_distance  # Reward gets less negative as we get closer

@@ -39,12 +39,16 @@ class QLearningAgent:
     def update(self, state: Tuple[int, int], action: int, reward: float, 
                next_state: Tuple[int, int], done: bool):
         current_q = self.q_table[state][action]
-        max_next_q = np.max(self.q_table[next_state])
         
-        # Q-learning update rule
-        new_q = current_q + self.learning_rate * (
-            reward + self.discount_factor * max_next_q * (1 - done) - current_q
-        )
+        # For terminal states, don't include the future reward estimate
+        if done:
+            new_q = current_q + self.learning_rate * (reward - current_q)
+        else:
+            max_next_q = np.max(self.q_table[next_state])
+            new_q = current_q + self.learning_rate * (
+                reward + self.discount_factor * max_next_q - current_q
+            )
+        
         self.q_table[state][action] = new_q
         
         # Decay exploration rate

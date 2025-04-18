@@ -1,6 +1,6 @@
-learning_rate: 0.1
-discount_factor: 0.95
-epsilon: 0.9
-epsilon_decay: 0.995
+learning_rate: 0.2
+discount_factor: 0.99
+epsilon: 1.0
+epsilon_decay: 0.995 # Slightly faster decay
 min_epsilon: 0.01
-episodes: 10000
+episodes: 100000 # Reduced for faster training on CPU

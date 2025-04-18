@@ -39,9 +39,6 @@ def train():
         exploration_rates.append(agent.epsilon)
         
         while not done and steps < 1000:
-            # Update moving obstacles
-            maze.update_moving_obstacles()
-            
             # Get action from agent
             action = agent.get_action(state)
             
@@ -58,11 +55,22 @@ def train():
             
             # Check if move is valid
             if not maze.is_valid_position(*next_state):
+                # Strong penalty for invalid moves
+                reward = -10.0
                 next_state = state  # Stay in place if invalid
-            
-            # Get reward
-            reward = maze.get_reward(*next_state)
-            done = (next_state == maze.goal)
+                done = False
+            else:
+                # Get reward based on new position
+                reward = maze.get_reward(*next_state)
+                
+                # Extra positive reward for getting closer to goal
+                current_dist = abs(row - maze.goal[0]) + abs(col - maze.goal[1])
+                new_dist = abs(next_state[0] - maze.goal[0]) + abs(next_state[1] - maze.goal[1])
+                if new_dist < current_dist:
+                    reward += 0.5  # Small bonus for progress
+                
+                # Check if goal reached
+                done = (next_state == maze.goal)
             
             # Update agent
             agent.update(state, action, reward, next_state, done)
@@ -81,6 +89,7 @@ def train():
     np.save('results/q_table.npy', agent.q_table)
     np.save('results/exploration_rates.npy', exploration_rates)
     np.save('results/exploration_history.npy', np.array(agent.exploration_history))
+    np.save('results/maze.npy', maze.grid)
     
     # Plot training results
     plt.figure(figsize=(15, 5))
