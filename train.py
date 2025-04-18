@@ -16,7 +16,8 @@ def train():
         config = yaml.safe_load(f)
     
     # Initialize environment with moving obstacles
-    maze = Maze(width=10, height=10, num_moving_obstacles=5, use_seed=42)
+    # Use a different seed each time or no seed for true randomness
+    maze = Maze(width=10, height=10, num_moving_obstacles=3, use_seed=None)
     agent = QLearningAgent(
         state_space=(maze.height, maze.width),
         action_space=4,
@@ -41,9 +42,13 @@ def train():
         stuck_counter = 0  # Track how many steps the agent is stuck
         visited_states = set()
 
+        # In the training loop, modify the section where the agent takes an action:
+        
         while not done and steps < 1000:
             # Get action from agent
             action = agent.get_action(state)
+            
+            # Update moving obstacles first
             maze.update_moving_obstacles()
             
             # Take action
@@ -64,17 +69,25 @@ def train():
                 next_state = state  # Stay in place if invalid
                 done = False
             else:
-                # Get reward based on new position
-                reward = maze.get_reward(*next_state)
-                
-                # Extra positive reward for getting closer to goal
-                current_dist = abs(row - maze.goal[0]) + abs(col - maze.goal[1])
-                new_dist = abs(next_state[0] - maze.goal[0]) + abs(next_state[1] - maze.goal[1])
-                if new_dist < current_dist:
-                    reward += 0.5  # Small bonus for progress
-                
-                # Check if goal reached
-                done = (next_state == maze.goal)
+                # Check if agent collided with a moving obstacle after moving
+                for (obs_row, obs_col, _, _, _) in maze.moving_obstacles:
+                    if next_state[0] == obs_row and next_state[1] == obs_col:
+                        # Agent collided with an obstacle
+                        reward = -50.0  # Large negative reward for collision
+                        done = True
+                        break
+                else:  # This else belongs to the for loop (executes if no break)
+                    # Get reward based on new position
+                    reward = maze.get_reward(*next_state)
+                    
+                    # Extra positive reward for getting closer to goal
+                    current_dist = abs(row - maze.goal[0]) + abs(col - maze.goal[1])
+                    new_dist = abs(next_state[0] - maze.goal[0]) + abs(next_state[1] - maze.goal[1])
+                    if new_dist < current_dist:
+                        reward += 0.5  # Small bonus for progress
+                    
+                    # Check if goal reached
+                    done = (next_state == maze.goal)
             
             # Detect if agent is stuck
             if state in visited_states:
@@ -105,7 +118,20 @@ def train():
     np.save('results/q_table.npy', agent.q_table)
     np.save('results/exploration_rates.npy', exploration_rates)
     np.save('results/exploration_history.npy', np.array(agent.exploration_history))
-    np.save('results/maze.npy', maze.grid)
+    
+    # Save the complete maze state as a dictionary
+    maze_state = {
+        'grid': maze.grid,
+        'start': maze.start,
+        'goal': maze.goal,
+        'width': maze.width,
+        'height': maze.height,
+        'moving_obstacles': maze.moving_obstacles
+    }
+    np.save('results/maze.npy', maze_state)
+    
+    # Also save just the grid for backward compatibility
+    np.save('results/maze_grid.npy', maze.grid)
     
     # Plot training results
     plt.figure(figsize=(15, 5))

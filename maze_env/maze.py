@@ -3,7 +3,17 @@ import pygame
 from typing import Tuple, Dict, List
 
 class Maze:
-    def __init__(self, width: int = 10, height: int = 10, num_moving_obstacles: int = 3 , use_seed: int = None):
+    def __init__(self, width: int = 10, height: int = 10, num_moving_obstacles: int = 3, use_seed: int = None):
+        """
+        Initialize a maze environment.
+        
+        Args:
+            width: Width of the maze
+            height: Height of the maze
+            num_moving_obstacles: Number of moving obstacles to add
+            use_seed: If provided, uses this seed for random number generation to create reproducible mazes.
+                      Set to None for truly random mazes.
+        """
         self.width = width
         self.height = height
         self.grid = np.zeros((height, width))  # 0 = empty, 1 = wall
@@ -17,29 +27,121 @@ class Maze:
         self._add_moving_obstacles(num_moving_obstacles)
         
     def _create_maze(self):
-        """Create a maze with guaranteed path to goal"""
-        # Clear all walls first
-        self.grid[:, :] = 0
+        """Create a random maze with guaranteed path to goal"""
+        # Clear all walls first - fill with walls
+        self.grid[:, :] = 1
         
-        # Add borders (leave bottom-right open)
-        self.grid[0, :] = 1                      # Top wall
-        self.grid[:, 0] = 1                      # Left wall
-        self.grid[:, -1] = 1                     # Right wall
-        self.grid[-1, :-1] = 1                   # Bottom wall (except last cell)
-        self.grid[0, 1] = 0
-        self.grid[1, 0] = 0                      
-        self.grid[-1, 8] = 0     
-        self.grid[-1, -1] = 0           
-        # Create a winding path to goal
-        path = [
-            (1,0),(0,1),(1, 1), (1, 2), (1, 3),             # Rightward path
-            (2, 3), (3, 3), (4, 3),              # Downward
-            (4, 4), (4, 5),                      # Rightward
-            (3, 5), (2, 5),                      # Upward
-            (2, 6), (2, 7),                      # Rightward
-            (3, 7), (4, 7), (5, 7), (6, 7),     # Downward
-            (6, 8), (7, 8), (8, 8), (8, 9)      # Right then down to goal
-        ] 
+        # Create a path using randomized DFS
+        def carve_path(row, col):
+            # Mark current cell as passage
+            self.grid[row, col] = 0
+            
+            # Define possible directions (up, right, down, left)
+            directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+            # Shuffle directions for randomness
+            np.random.shuffle(directions)
+            
+            # Try each direction
+            for dr, dc in directions:
+                new_row, new_col = row + 2*dr, col + 2*dc
+                # Check if the new position is within bounds and not visited
+                if (0 <= new_row < self.height and 0 <= new_col < self.width and 
+                    self.grid[new_row, new_col] == 1):
+                    # Carve passage by making the wall and the cell beyond it passages
+                    self.grid[row + dr, col + dc] = 0
+                    carve_path(new_row, new_col)
+        
+        # Start from a random position
+        start_row, start_col = np.random.randint(1, self.height-1), np.random.randint(1, self.width-1)
+        carve_path(start_row, start_col)
+        
+        # Ensure start and goal are open
+        self.grid[self.start[0], self.start[1]] = 0
+        self.grid[self.goal[0], self.goal[1]] = 0
+        
+        # Ensure there's a path from start to goal using A* pathfinding
+        if not self._has_path_to_goal():
+            self._ensure_path_to_goal()
+        
+        # Add some random openings to make the maze less dense (more paths)
+        for _ in range(int(self.width * self.height * 0.2)):  # Open about 20% of walls
+            row, col = np.random.randint(1, self.height-1), np.random.randint(1, self.width-1)
+            self.grid[row, col] = 0
+    
+    def _has_path_to_goal(self):
+        """Check if there's a path from start to goal using A* algorithm"""
+        # A* implementation
+        from heapq import heappush, heappop
+        
+        # Heuristic: Manhattan distance
+        def heuristic(pos):
+            return abs(pos[0] - self.goal[0]) + abs(pos[1] - self.goal[1])
+        
+        # Initialize
+        open_set = []
+        heappush(open_set, (heuristic(self.start), 0, self.start))  # (f, g, position)
+        came_from = {}
+        g_score = {self.start: 0}
+        
+        while open_set:
+            _, _, current = heappop(open_set)
+            
+            if current == self.goal:
+                return True
+            
+            # Check neighbors
+            for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                neighbor = (current[0] + dr, current[1] + dc)
+                
+                # Check if valid position
+                if not (0 <= neighbor[0] < self.height and 0 <= neighbor[1] < self.width):
+                    continue
+                if self.grid[neighbor[0], neighbor[1]] == 1:  # Wall
+                    continue
+                
+                tentative_g = g_score[current] + 1
+                
+                if neighbor not in g_score or tentative_g < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g
+                    f_score = tentative_g + heuristic(neighbor)
+                    heappush(open_set, (f_score, tentative_g, neighbor))
+        
+        return False
+    
+    def _ensure_path_to_goal(self):
+        """Ensure there's a path from start to goal by carving a direct path"""
+        row, col = self.start
+        while (row, col) != self.goal:
+            # Move towards goal
+            if row < self.goal[0]:
+                row += 1
+            elif row > self.goal[0]:
+                row -= 1
+            elif col < self.goal[1]:
+                col += 1
+            elif col > self.goal[1]:
+                col -= 1
+            
+            # Carve path
+            self.grid[row, col] = 0
+        
+        # Add some random obstacles that don't block the path
+        # First identify the path we just created
+        path = []
+        row, col = self.start
+        while (row, col) != self.goal:
+            path.append((row, col))
+            if row < self.goal[0]:
+                row += 1
+            elif row > self.goal[0]:
+                row -= 1
+            elif col < self.goal[1]:
+                col += 1
+            elif col > self.goal[1]:
+                col -= 1
+        path.append(self.goal)
+        
         # Add some random obstacles that don't block the path
         for _ in range(15):  # Number of obstacles
             attempts = 0

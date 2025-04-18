@@ -7,20 +7,39 @@ from matplotlib.colors import ListedColormap
 def visualize_q_table():
     # Load Q-table and maze
     q_table = np.load('results/q_table.npy')
-    maze = np.load('results/maze.npy') if 'results/maze.npy' in os.listdir('results') else None
     
     # Create colormap
     cmap = ListedColormap(['white', 'black'])  # empty, wall
     
     plt.figure(figsize=(12, 6))
     
-    # Plot maze
-    if maze is None:
-        print("Maze file not found. Skipping maze visualization.")
-    else:
+    # Try to load maze from either format
+    maze_path = os.path.join('results', 'maze.npy')
+    maze_grid_path = os.path.join('results', 'maze_grid.npy')
+    
+    if os.path.exists(maze_path):
+        try:
+            maze_data = np.load(maze_path, allow_pickle=True).item()
+            maze_grid = maze_data['grid']
+            plt.subplot(1, 2, 1)
+            plt.imshow(maze_grid, cmap=cmap)  # Use maze_grid instead of maze
+            plt.title('Maze Layout')
+        except:
+            print("Error loading maze file. Trying alternative format...")
+            if os.path.exists(maze_grid_path):
+                maze_grid = np.load(maze_grid_path)
+                plt.subplot(1, 2, 1)
+                plt.imshow(maze_grid, cmap=cmap)  # Use maze_grid instead of maze
+                plt.title('Maze Layout')
+            else:
+                print("Maze file not found. Skipping maze visualization.")
+    elif os.path.exists(maze_grid_path):
+        maze_grid = np.load(maze_grid_path)
         plt.subplot(1, 2, 1)
-        plt.imshow(maze, cmap=cmap)
+        plt.imshow(maze_grid, cmap=cmap)  # Use maze_grid instead of maze
         plt.title('Maze Layout')
+    else:
+        print("Maze file not found. Skipping maze visualization.")
     
     # Plot Q-table (max Q-values)
     plt.subplot(1, 2, 2)
