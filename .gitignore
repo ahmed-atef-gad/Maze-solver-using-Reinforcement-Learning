@@ -1,1 +1,8 @@
-results/*
+# Ignore the entire results directory
+results/
+
+# Ignore Python cache directories
+__pycache__/
+*/__pycache__/
+**/__pycache__/
+
