@@ -16,7 +16,7 @@ def train():
         config = yaml.safe_load(f)
     
     # Initialize environment with moving obstacles
-    maze = Maze(width=10, height=10, num_moving_obstacles=3)
+    maze = Maze(width=10, height=10, num_moving_obstacles=4, use_seed=40)
     agent = QLearningAgent(
         state_space=(maze.height, maze.width),
         action_space=4,
@@ -41,6 +41,7 @@ def train():
         while not done and steps < 1000:
             # Get action from agent
             action = agent.get_action(state)
+            maze.update_moving_obstacles()
             
             # Take action
             row, col = state
