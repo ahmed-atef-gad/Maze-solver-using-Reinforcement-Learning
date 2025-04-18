@@ -10,7 +10,7 @@ def evaluate():
     q_table = np.load('results/q_table.npy')
     
     # Initialize environment
-    maze = Maze(width=10, height=10, num_moving_obstacles=0)  # Disable moving obstacles
+    maze = Maze(width=10, height=10, num_moving_obstacles=4, use_seed=40)  # Disable moving obstacles
     renderer = MazeRenderer(maze)
     
     # Initialize font for score display
@@ -28,6 +28,7 @@ def evaluate():
     max_steps = 100
     
     while not done and steps < max_steps:
+        maze.update_moving_obstacles()
         # Debug print current state
         print(f"Agent Position: {state}, Goal: {maze.goal}")
         
