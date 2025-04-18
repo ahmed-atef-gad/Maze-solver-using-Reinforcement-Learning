@@ -54,3 +54,8 @@ class QLearningAgent:
         # Decay exploration rate
         if done:
             self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
+    
+    def save_and_clear_exploration_history(self, filepath: str):
+        """Save exploration history to a file and clear it"""
+        np.save(filepath, np.array(self.exploration_history))
+        self.exploration_history = []

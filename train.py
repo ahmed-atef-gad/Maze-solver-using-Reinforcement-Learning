@@ -16,7 +16,7 @@ def train():
         config = yaml.safe_load(f)
     
     # Initialize environment with moving obstacles
-    maze = Maze(width=10, height=10, num_moving_obstacles=4, use_seed=40)
+    maze = Maze(width=10, height=10, num_moving_obstacles=5, use_seed=42)
     agent = QLearningAgent(
         state_space=(maze.height, maze.width),
         action_space=4,
@@ -38,6 +38,9 @@ def train():
         # Track exploration rate for this episode
         exploration_rates.append(agent.epsilon)
         
+        stuck_counter = 0  # Track how many steps the agent is stuck
+        visited_states = set()
+
         while not done and steps < 1000:
             # Get action from agent
             action = agent.get_action(state)
@@ -73,6 +76,18 @@ def train():
                 # Check if goal reached
                 done = (next_state == maze.goal)
             
+            # Detect if agent is stuck
+            if state in visited_states:
+                stuck_counter += 1
+            else:
+                stuck_counter = 0
+            visited_states.add(state)
+
+            if stuck_counter > 20:  # Reset agent if stuck for too long
+                print("Agent is stuck. Resetting position.")
+                state = maze.start
+                stuck_counter = 0
+
             # Update agent
             agent.update(state, action, reward, next_state, done)
             

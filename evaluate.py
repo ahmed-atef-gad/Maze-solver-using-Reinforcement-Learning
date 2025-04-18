@@ -4,13 +4,18 @@ from maze_env.render import MazeRenderer
 import pygame
 import time
 import sys
+import os
 
-def evaluate():
+def evaluate(render=True):
     # Load trained Q-table
-    q_table = np.load('results/q_table.npy')
+    q_table = np.load(os.path.join('results', 'q_table.npy'))
     
     # Initialize environment
-    maze = Maze(width=10, height=10, num_moving_obstacles=4, use_seed=40)  # Disable moving obstacles
+    maze = Maze(width=10, height=10, num_moving_obstacles=5, use_seed=42)
+    # Load the exact maze grid from training
+    maze_grid_path = os.path.join('results', 'maze.npy')
+    if os.path.exists(maze_grid_path):
+        maze.grid = np.load(maze_grid_path)
     renderer = MazeRenderer(maze)
     
     # Initialize font for score display
@@ -69,7 +74,8 @@ def evaluate():
             # Mark this action as blocked for future reference
             if state not in blocked_actions:
                 blocked_actions[state] = []
-            blocked_actions[state].append(action)
+            if len(blocked_actions[state]) < 4:  # Limit to 4 actions (all possible actions)
+                blocked_actions[state].append(action)
             
             # Apply penalty and stay in place
             reward = -5.0
@@ -101,17 +107,15 @@ def evaluate():
             print("Agent appears stuck. Penalizing current action preference.")
             q_table[state][action] *= 0.8  # Temporarily reduce this action's value
         
-        # Render
-        renderer.update(state)
-        
-        # Display score and steps
-        score_text = font.render(f"Score: {total_reward:.1f}", True, (0, 0, 0))
-        steps_text = font.render(f"Steps: {steps}", True, (0, 0, 0))
-        renderer.screen.blit(score_text, (10, 10))
-        renderer.screen.blit(steps_text, (10, 40))
-        
-        pygame.display.flip()
-        time.sleep(0.3)  # Slow down for visualization
+        # Render only if visualization is enabled
+        if render:
+            renderer.update(state)
+            score_text = font.render(f"Score: {total_reward:.1f}", True, (0, 0, 0))
+            steps_text = font.render(f"Steps: {steps}", True, (0, 0, 0))
+            renderer.screen.blit(score_text, (10, 10))
+            renderer.screen.blit(steps_text, (10, 40))
+            pygame.display.flip()
+            time.sleep(0.3)  # Slow down for visualization
         
         # Check for quit event
         for event in pygame.event.get():
@@ -135,4 +139,4 @@ def evaluate():
     renderer.close()
 
 if __name__ == "__main__":
-    evaluate()
+    evaluate(render=True)  # Set to False for headless evaluation

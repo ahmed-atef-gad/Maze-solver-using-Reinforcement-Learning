@@ -15,7 +15,9 @@ def visualize_q_table():
     plt.figure(figsize=(12, 6))
     
     # Plot maze
-    if maze is not None:
+    if maze is None:
+        print("Maze file not found. Skipping maze visualization.")
+    else:
         plt.subplot(1, 2, 1)
         plt.imshow(maze, cmap=cmap)
         plt.title('Maze Layout')
