@@ -36,8 +36,13 @@ This project implements a maze-solving agent using Q-learning reinforcement lear
 - **Experience Replay**: Reuses past experiences to improve learning efficiency
 
 ## Usage
+1. install the required dependencies:
 
-1. Train the agent:
+````bash
+pip install -r requirements.txt
+````
+
+2. Train the agent:
 
 ````bash
 python train.py
@@ -45,13 +50,13 @@ python train.py
 
    This will train the agent according to the parameters in `configs/default.yaml` and save the Q-table and training metrics to the `results/` directory.
 
-2. Evaluate the trained agent:
+3. Evaluate the trained agent:
 ````bash
 python evaluate.py
 ````
    This will load the trained Q-table and visualize the agent navigating through the maze.
 
-3. Visualize the Q-table:
+4. Visualize the Q-table:
 ````bash
 python visualize.py
 ````
