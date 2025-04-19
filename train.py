@@ -17,7 +17,7 @@ def train():
     
     # Initialize environment with moving obstacles
     # Use a different seed each time or no seed for true randomness
-    maze = Maze(width=10, height=10, num_moving_obstacles=3, use_seed=None)
+    maze = Maze(width=10, height=10, num_moving_obstacles=5, use_seed=None)
     agent = QLearningAgent(
         state_space=(maze.height, maze.width),
         action_space=4,

@@ -12,13 +12,17 @@ def evaluate(render=True):
     # Load trained Q-table
     q_table = np.load(os.path.join('results', 'q_table.npy'))
     
-    # Initialize environment
-    maze = Maze(width=10, height=10, num_moving_obstacles=3, use_seed=None)
-    # Load the exact maze grid from training
+    # Initialize environment with dummy obstacles (will load actual state)
+    maze = Maze(width=10, height=10, num_moving_obstacles=0, use_seed=None)
+    
+    # Load the exact maze state from training
     maze_grid_path = os.path.join('results', 'maze.npy')
     if os.path.exists(maze_grid_path):
         maze_state = np.load(maze_grid_path, allow_pickle=True).item()
         maze.grid = maze_state['grid']
+        maze.start = maze_state['start']
+        maze.goal = maze_state['goal']
+        maze.moving_obstacles = maze_state['moving_obstacles']
     
     # Create agent with loaded Q-table
     agent = QLearningAgent(
@@ -55,23 +59,10 @@ def evaluate(render=True):
         # Update moving obstacles before the agent moves
         maze.update_moving_obstacles()
         
-        # Determine action based on current situation
-        if stuck_count > 8:
-            # Force exploration when stuck
-            if random.random() < 0.7:  # 70% chance of random action when stuck
-                print("Taking random action to break out of loop")
-                action = random.randint(0, 3)
-            else:
-                # Use the temporary Q-table for action selection
-                action = np.argmax(temp_q_table[state])
-        else:
-            # Use the original Q-table with some randomness
-            if random.random() < 0.1:  # 10% exploration
-                action = random.randint(0, 3)
-            else:
-                action = np.argmax(q_table[state])
+        # Get action using the agent's policy WITHOUT exploration
+        action = agent.get_action(state, training=False)  # Replace manual action selection
         
-        # If this action has failed before at this state, try another one
+        # Remove the manual exploration logic and failed action tracking
         if state in failed_actions and action in failed_actions[state]:
             # Get actions that haven't failed
             possible_actions = [a for a in range(4) if a not in failed_actions[state]]
@@ -108,16 +99,17 @@ def evaluate(render=True):
             stuck_count += 1
         else:
             # Check for collision with moving obstacles
-            collision = False
-            for (obs_row, obs_col, _, _, _) in maze.moving_obstacles:
-                if next_state[0] == obs_row and next_state[1] == obs_col:
-                    print(f"Collision with obstacle at {next_state}! Game over.")
-                    total_reward -= 50
-                    done = True
-                    collision = True
-                    break
+            # Improved collision detection
+            collision = any(
+                next_state[0] == obs_row and next_state[1] == obs_col
+                for (obs_row, obs_col, _, _, _) in maze.moving_obstacles
+            )
             
-            if not collision:
+            if collision:
+                print(f"Collision with obstacle at {next_state}! Game over.")
+                total_reward -= 50
+                done = True
+            else:
                 # Get reward based on new position
                 reward = maze.get_reward(*next_state)
                 

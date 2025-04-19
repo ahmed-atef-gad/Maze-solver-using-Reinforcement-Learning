@@ -170,41 +170,54 @@ class Maze:
     def update_moving_obstacles(self):
         """Update positions of moving obstacles"""
         new_obstacles = []
-        for row, col, dr, dc, steps_to_change in self.moving_obstacles:
-            # Try to move in the current direction
+        occupied_positions = set()
+        
+        for obstacle in self.moving_obstacles:
+            row, col, dr, dc, steps_to_change = obstacle
+            original_pos = (row, col)
+            
+            # Try current direction first
             new_row, new_col = row + dr, col + dc
-
-            # Check if the new position is valid
-            if (0 <= new_row < self.height and 0 <= new_col < self.width and
-                self.grid[new_row, new_col] == 0 and  # Ensure it's not a wall
+            valid_move = (
+                0 <= new_row < self.height and
+                0 <= new_col < self.width and
+                self.grid[new_row, new_col] == 0 and
+                (new_row, new_col) not in occupied_positions and
                 (new_row, new_col) != self.start and
-                (new_row, new_col) != self.goal):
-                # Valid move
+                (new_row, new_col) != self.goal
+            )
+            
+            # If current direction invalid, try random directions
+            if not valid_move:
+                directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+                np.random.shuffle(directions)
+                for new_dr, new_dc in directions:
+                    potential_row = row + new_dr
+                    potential_col = col + new_dc
+                    if (0 <= potential_row < self.height and
+                        0 <= potential_col < self.width and
+                        self.grid[potential_row, potential_col] == 0 and
+                        (potential_row, potential_col) not in occupied_positions and
+                        (potential_row, potential_col) != self.start and
+                        (potential_row, potential_col) != self.goal):
+                        new_row, new_col = potential_row, potential_col
+                        dr, dc = new_dr, new_dc
+                        valid_move = True
+                        break
+            
+            if valid_move:
+                # Update steps_to_change counter
                 steps_to_change -= 1
                 if steps_to_change <= 0:
-                    # Randomly change direction after a certain number of steps
                     dr, dc = [(0, 1), (0, -1), (1, 0), (-1, 0)][np.random.randint(4)]
                     steps_to_change = np.random.randint(3, 7)
+                occupied_positions.add((new_row, new_col))
                 new_obstacles.append((new_row, new_col, dr, dc, steps_to_change))
             else:
-                # Current direction is blocked, choose a new random valid direction
-                valid_move_found = False
-                for _ in range(4):  # Try all 4 possible directions
-                    dr, dc = [(0, 1), (0, -1), (1, 0), (-1, 0)][np.random.randint(4)]
-                    new_row, new_col = row + dr, col + dc
-                    if (0 <= new_row < self.height and 0 <= new_col < self.width and
-                        self.grid[new_row, new_col] == 0 and
-                        (new_row, new_col) != self.start and
-                        (new_row, new_col) != self.goal):
-                        # Found a valid move
-                        steps_to_change = np.random.randint(3, 7)
-                        new_obstacles.append((new_row, new_col, dr, dc, steps_to_change))
-                        valid_move_found = True
-                        break
-                if not valid_move_found:
-                    # If no valid move is found, keep the obstacle in its current position
-                    new_obstacles.append((row, col, dr, dc, steps_to_change))
-
+                # Keep original position if no valid moves
+                occupied_positions.add(original_pos)
+                new_obstacles.append((row, col, dr, dc, steps_to_change))
+        
         self.moving_obstacles = new_obstacles
     
     def is_valid_position(self, row: int, col: int) -> bool:
@@ -223,11 +236,14 @@ class Maze:
     def get_reward(self, row: int, col: int) -> float:
         """Get reward for current position"""
         if (row, col) == self.goal:
-            return 100.0  # Higher reward for reaching the goal
+            return 100.0
         
-        # Calculate Manhattan distance to the goal
+        # Penalty for being near moving obstacles
+        obstacle_penalty = 0.0
+        for (obs_row, obs_col, _, _, _) in self.moving_obstacles:
+            distance = abs(row - obs_row) + abs(col - obs_col)
+            if distance <= 1:  # Immediate vicinity
+                obstacle_penalty -= 5.0
+        
         current_distance = abs(row - self.goal[0]) + abs(col - self.goal[1])
-        max_distance = self.width + self.height
-        
-        # Stronger signal for getting closer to the goal
-        return -0.1 * current_distance  # Reward gets less negative as we get closer
+        return -0.1 * current_distance + obstacle_penalty

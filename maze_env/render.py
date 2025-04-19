@@ -44,7 +44,18 @@ class MazeRenderer:
                 pygame.draw.rect(self.screen, (200, 200, 200), rect, 1)
     
     def draw_moving_obstacles(self):
-        for (row, col, _, _, _) in self.maze.moving_obstacles:  # Unpack 5 elements
+        for (row, col, dr, dc, _) in self.maze.moving_obstacles:
+            # Draw direction indicator
+            direction = (dr * 2, dc * 2)  # Amplify direction for visibility
+            end_pos = (
+                col * self.cell_size + self.cell_size//2 + direction[1] * 10,
+                row * self.cell_size + self.cell_size//2 + direction[0] * 10
+            )
+            pygame.draw.line(
+                self.screen, (255, 0, 0),
+                (col * self.cell_size + self.cell_size//2, row * self.cell_size + self.cell_size//2),
+                end_pos, 3
+            )
             center = (
                 col * self.cell_size + self.cell_size // 2,
                 row * self.cell_size + self.cell_size // 2
