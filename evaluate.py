@@ -58,19 +58,14 @@ def evaluate(render=True):
     while not done and steps < max_steps:
         # Update moving obstacles before the agent moves
         maze.update_moving_obstacles()
-        
+
+        # Debug: Print positions of moving obstacles
+        print("Moving obstacles positions:", [(obs_row, obs_col) for (obs_row, obs_col, _, _, _) in maze.moving_obstacles])
+
         # Get action using the agent's policy WITHOUT exploration
-        action = agent.get_action(state, training=False)  # Replace manual action selection
-        
-        # Remove the manual exploration logic and failed action tracking
-        if state in failed_actions and action in failed_actions[state]:
-            # Get actions that haven't failed
-            possible_actions = [a for a in range(4) if a not in failed_actions[state]]
-            if possible_actions:
-                action = random.choice(possible_actions)
-                print(f"Avoiding failed action, trying {action} instead")
-        
-        # Take action
+        action = agent.get_action(state, training=False)
+
+        # Determine the next state based on the chosen action
         row, col = state
         if action == 0:   # up
             next_state = (row-1, col)
@@ -80,70 +75,68 @@ def evaluate(render=True):
             next_state = (row, col-1)
         elif action == 3:  # right
             next_state = (row, col+1)
-        
+
+        # Predict the next positions of moving obstacles
+        predicted_obstacle_positions = [
+            (obs_row + dr, obs_col + dc) for (obs_row, obs_col, dr, dc, _) in maze.moving_obstacles
+        ]
+
+        # Check for collision with current and predicted positions of moving obstacles
+        collision = next_state in predicted_obstacle_positions or next_state in [(obs_row, obs_col) for (obs_row, obs_col, _, _, _) in maze.moving_obstacles]
+
+        if collision:
+            print(f"Predicted collision at {next_state}. Finding alternative path.")
+            # Find an alternative action to avoid the obstacle
+            possible_actions = [a for a in range(4) if a != action]
+            safe_moves = []
+            for alt_action in possible_actions:
+                if alt_action == 0:   # up
+                    alt_next_state = (row-1, col)
+                elif alt_action == 1:  # down
+                    alt_next_state = (row+1, col)
+                elif alt_action == 2:  # left
+                    alt_next_state = (row, col-1)
+                elif alt_action == 3:  # right
+                    alt_next_state = (row, col+1)
+
+                # Check if alternative move is valid and not colliding with predicted positions
+                if maze.is_valid_position(*alt_next_state) and alt_next_state not in predicted_obstacle_positions:
+                    safe_moves.append((alt_action, alt_next_state))
+
+            # Prioritize moves that are farthest from predicted obstacle positions
+            if safe_moves:
+                safe_moves.sort(key=lambda move: min(abs(move[1][0] - obs_row) + abs(move[1][1] - obs_col) for (obs_row, obs_col) in predicted_obstacle_positions), reverse=True)
+                action, next_state = safe_moves[0]
+            else:
+                # If no valid alternative found, stay in place
+                next_state = state
+                reward = -10.0
+                stuck_count += 1
+                continue
+
         # Check if move is valid
         if not maze.is_valid_position(*next_state):
             print(f"Invalid move attempted. Staying at {state}")
-            
-            # Record this failed action
-            if state not in failed_actions:
-                failed_actions[state] = set()
-            failed_actions[state].add(action)
-            
-            # Heavily penalize this action in the temporary Q-table
-            temp_q_table[state][action] -= 20.0
-            
-            # Stay in place
             next_state = state
             reward = -10.0
             stuck_count += 1
         else:
-            # Check for collision with moving obstacles
-            # Improved collision detection
-            collision = any(
-                next_state[0] == obs_row and next_state[1] == obs_col
-                for (obs_row, obs_col, _, _, _) in maze.moving_obstacles
-            )
-            
-            if collision:
-                print(f"Collision with obstacle at {next_state}! Game over.")
-                total_reward -= 50
+            # Get reward based on new position
+            reward = maze.get_reward(*next_state)
+            print(f"Moving to {next_state} with reward {reward}")
+
+            # Check if goal reached
+            if next_state == maze.goal:
+                print(f"Agent reached the goal in {steps+1} steps!")
+                total_reward += reward
                 done = True
             else:
-                # Get reward based on new position
-                reward = maze.get_reward(*next_state)
-                
-                # Check if we're revisiting a state (to prevent loops)
-                if next_state in visited_states:
-                    visit_count = visited_states[next_state]
-                    # Exponential penalty for revisits
-                    penalty = -2.0 * (2 ** min(visit_count, 5))
-                    print(f"Revisited state: {next_state} ({visit_count} times), applying penalty {penalty}.")
-                    reward += penalty
-                    
-                    # Also penalize this state in the temporary Q-table
-                    temp_q_table[state][action] -= visit_count * 2.0
-                
-                # Check if goal reached
-                if next_state == maze.goal:
-                    print(f"Moving to {next_state} with reward {reward}")
-                    print(f"Agent reached the goal in {steps+1} steps!")
-                    total_reward += reward
-                    done = True
-                else:
-                    print(f"Moving to {next_state} with reward {reward}")
-                    total_reward += reward
-                
-                # Reset stuck counter only if we're moving to a new state
-                if next_state != state:
-                    stuck_count = 0
-            
-            # Update visited states counter
-            if next_state in visited_states:
-                visited_states[next_state] += 1
-            else:
-                visited_states[next_state] = 1
-        
+                total_reward += reward
+
+            # Reset stuck counter only if we're moving to a new state
+            if next_state != state:
+                stuck_count = 0
+
         # Update state and path history
         state = next_state
         path_history.append(state)
