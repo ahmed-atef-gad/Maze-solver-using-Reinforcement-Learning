@@ -1,31 +1,84 @@
 import numpy as np
-import pygame
+import gym
+from gym import spaces
 from typing import Tuple, Dict, List
 
-class Maze:
+class Maze(gym.Env):
+    metadata = {'render.modes': ['human']}
+
     def __init__(self, width: int = 10, height: int = 10, num_moving_obstacles: int = 3, use_seed: int = None):
-        """
-        Initialize a maze environment.
-        
-        Args:
-            width: Width of the maze
-            height: Height of the maze
-            num_moving_obstacles: Number of moving obstacles to add
-            use_seed: If provided, uses this seed for random number generation to create reproducible mazes.
-                      Set to None for truly random mazes.
-        """
+        super().__init__()
         self.width = width
         self.height = height
         self.grid = np.zeros((height, width))  # 0 = empty, 1 = wall
         self.start = (0, 0)
         self.goal = (height-1, width-1)
-        self.moving_obstacles: List[Tuple[int, int, int, int, int]] = []  # (row, col, dr, dc, steps_to_change)
+        self.moving_obstacles: List[Tuple[int, int, int, int, int]] = []
         if use_seed is not None:
             np.random.seed(use_seed)
         self._create_maze()
-
         self._add_moving_obstacles(num_moving_obstacles)
-        
+
+        # Gym spaces
+        self.action_space = spaces.Discrete(4)  # 0: up, 1: down, 2: left, 3: right
+        self.observation_space = spaces.Box(
+            low=0, high=max(self.height-1, self.width-1),
+            shape=(2,), dtype=np.int32
+        )
+        self.agent_pos = self.start
+
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)
+        if seed is not None:
+            np.random.seed(seed)
+        self._create_maze()
+        self._add_moving_obstacles(len(self.moving_obstacles))
+        self.agent_pos = self.start
+        return np.array(self.agent_pos, dtype=np.int32)
+
+    def step(self, action):
+        row, col = self.agent_pos
+        if action == 0:   # up
+            next_state = (row-1, col)
+        elif action == 1:  # down
+            next_state = (row+1, col)
+        elif action == 2:  # left
+            next_state = (row, col-1)
+        elif action == 3:  # right
+            next_state = (row, col+1)
+        else:
+            next_state = (row, col)
+
+        self.update_moving_obstacles()
+
+        # Check if move is valid
+        if not self.is_valid_position(*next_state):
+            reward = -10.0
+            next_state = self.agent_pos
+            done = False
+        else:
+            # Check collision with moving obstacles
+            for (obs_row, obs_col, _, _, _) in self.moving_obstacles:
+                if next_state[0] == obs_row and next_state[1] == obs_col:
+                    reward = -50.0
+                    done = True
+                    break
+            else:
+                reward = self.get_reward(*next_state)
+                done = (next_state == self.goal)
+
+        self.agent_pos = next_state
+        obs = np.array(self.agent_pos, dtype=np.int32)
+        info = {}
+        return obs, reward, done, info
+
+    def render(self, mode='human'):
+        # Optional: You can call your MazeRenderer here if you want to visualize
+        print(f"Agent position: {self.agent_pos}")
+
+    def close(self):
+        pass
+
     def _create_maze(self):
         """Create a random maze with guaranteed path to goal"""
         # Clear all walls first - fill with walls
