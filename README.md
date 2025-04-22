@@ -1,6 +1,6 @@
 # Reinforcement Learning Maze Solver
 
-This project implements a maze-solving agent using Q-learning reinforcement learning.
+This project implements maze-solving agents using reinforcement learning algorithms, including Q-learning and Policy Gradient methods. The environment features moving obstacles for added complexity.
 
 ## Installation
 
@@ -20,8 +20,9 @@ This project implements a maze-solving agent using Q-learning reinforcement lear
 - `maze_env/`: Contains the maze environment implementation
   - `maze.py`: Defines the maze and reward structure
   - `render.py`: Visualizes the maze and agent
-- `agents/`: Contains the Q-learning agent
+- `agents/`: Contains the reinforcement learning agents
   - `q_learning.py`: Implements the Q-learning algorithm
+  - `policy_gradient.py`: Implements the Policy Gradient algorithm with neural networks
 - `train.py`: Main script for training the agent
 - `evaluate.py`: Script for evaluating the trained agent
 - `visualize.py`: Script for visualizing the Q-table
@@ -30,37 +31,64 @@ This project implements a maze-solving agent using Q-learning reinforcement lear
 
 ## Key Algorithms
 
-- **Q-learning**: A value-based reinforcement learning algorithm that learns optimal policies by estimating the value of state-action pairs
-- **Epsilon-greedy Strategy**: Balances exploration and exploitation
+### Q-learning
+
+- A value-based reinforcement learning algorithm that learns optimal policies by estimating the value of state-action pairs
+- Uses an epsilon-greedy strategy to balance exploration and exploitation
+- Stores values in a Q-table for each state-action pair
+
+### Policy Gradient
+
+- A policy-based reinforcement learning algorithm that directly learns the policy function
+- Uses neural networks to approximate the policy
+- Optimizes the policy using gradient ascent on the expected rewards
+- Handles continuous state spaces more effectively than Q-learning
+
+### Common Features
+
+- **Moving Obstacles**: Adds complexity with dynamic elements in the environment
 - **Reward Shaping**: Uses distance-based rewards to guide learning
-- **Experience Replay**: Reuses past experiences to improve learning efficiency
+- **Collision Prediction**: Agents learn to predict and avoid collisions with moving obstacles
 
 ## Usage
+
 1. install the required dependencies:
 
 ````bash
 pip install -r requirements.txt
 ````
 
-2. Train the agent:
+2. Train an agent:
 
 ````bash
-python train.py
+python train.py --agent q_learning
+# or
+python train.py --agent policy_gradient
 ````
 
-   This will train the agent according to the parameters in `configs/default.yaml` and save the Q-table and training metrics to the `results/` directory.
+   This will train the specified agent according to the parameters in `configs/default.yaml` and save the model and training metrics to the `results/` directory.
 
 3. Evaluate the trained agent:
-````bash
-python evaluate.py
-````
-   This will load the trained Q-table and visualize the agent navigating through the maze.
 
-4. Visualize the Q-table:
 ````bash
-python visualize.py
+python evaluate.py --agent q_learning
+# or
+python evaluate.py --agent policy_gradient
 ````
-   This will generate a visualization of the learned Q-values, showing the policy the agent has learned.
+
+   This will load the trained model and visualize the agent navigating through the maze.
+
+4. Visualize the agent's learned policy:
+
+````bash
+# For Q-learning agent
+python visualize.py --agent q_learning
+
+# For Policy Gradient agent
+python visualize.py --agent policy_gradient
+````
+
+   This will generate a visualization of the learned policy, showing how the agent navigates through the maze. For Q-learning, it displays the Q-values, while for Policy Gradient, it shows the action probabilities from the neural network.
 
 ## Configuration
 
@@ -77,7 +105,8 @@ You can modify the learning parameters in `configs/default.yaml`:
 
 Training results are saved in the `results/` directory:
 
-- Q-table values: The learned action values for each state
+- Q-table values (Q-learning): The learned action values for each state
+- Policy network (Policy Gradient): The trained neural network model
 - Reward history: Total rewards per episode
 - Steps history: Number of steps per episode
 - Exploration rate: Epsilon value over time

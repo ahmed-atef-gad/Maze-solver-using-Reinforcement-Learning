@@ -1,6 +1,16 @@
-learning_rate: 0.2
+# Common parameters
 discount_factor: 0.99
-epsilon: 1.0
+
+# Training episodes
+q_learning_episodes: 150000 # Episodes for Q-learning
+pg_episodes: 1000 # Episodes for Policy Gradient
+
+# Q-learning parameters
+learning_rate: 0.2
+epsilon: 0.8
 epsilon_decay: 0.995 # Slightly faster decay
 min_epsilon: 0.01
-episodes: 150000 # Reduced for faster training on CPU
+
+# Policy Gradient parameters
+pg_learning_rate: 0.001
+hidden_dim: 128

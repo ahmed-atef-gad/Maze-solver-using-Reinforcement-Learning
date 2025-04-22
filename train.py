@@ -2,12 +2,15 @@ import numpy as np
 from maze_env.maze import Maze
 from maze_env.render import MazeRenderer
 from agents.q_learning import QLearningAgent
+from agents.policy_gradient import PolicyGradientAgent
 import yaml
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import os
+import torch
+import argparse
 
-def train():
+def train(agent_type="q_learning"):
     # Create results directory if it doesn't exist
     os.makedirs('results', exist_ok=True)
     
@@ -17,20 +20,32 @@ def train():
     
     # Initialize environment with moving obstacles
     # Use a different seed each time or no seed for true randomness
-    maze = Maze(width=10, height=10, num_moving_obstacles=5, use_seed=None)
-    agent = QLearningAgent(
-        state_space=(maze.height, maze.width),
-        action_space=4,
-        config_path='configs/default.yaml'
-    )
+    maze = Maze(width=10, height=10, num_moving_obstacles=4, use_seed=None)
+    
+    # Initialize agent based on type
+    if agent_type == "q_learning":
+        agent = QLearningAgent(
+            state_space=(maze.height, maze.width),
+            action_space=4,
+            config_path='configs/default.yaml'
+        )
+    elif agent_type == "policy_gradient":
+        agent = PolicyGradientAgent(
+            state_space=(maze.height, maze.width),
+            action_space=4,
+            config_path='configs/default.yaml'
+        )
+    else:
+        raise ValueError(f"Unknown agent_type: {agent_type}")
     
     # Training metrics
     rewards_history = []
     steps_history = []
     exploration_rates = []
     
-    # Training loop
-    for episode in tqdm(range(config['episodes']), desc="Training"):
+    # Training loop with agent-specific episode count
+    episodes = config['q_learning_episodes'] if agent_type == 'q_learning' else config['pg_episodes']
+    for episode in tqdm(range(episodes), desc="Training"):
         state = maze.start
         total_reward = 0
         steps = 0
@@ -46,7 +61,10 @@ def train():
         
         while not done and steps < 1000:
             # Get action from agent
-            action = agent.get_action(state)
+            if agent_type == "policy_gradient":
+                action = agent.get_action(state, training=True, goal=maze.goal)
+            else:
+                action = agent.get_action(state)
             
             # Update moving obstacles first
             maze.update_moving_obstacles()
@@ -102,7 +120,10 @@ def train():
                 stuck_counter = 0
 
             # Update agent
-            agent.update(state, action, reward, next_state, done)
+            if agent_type == "policy_gradient":
+                agent.update(state, action, reward, next_state, done, goal=maze.goal)
+            else:
+                agent.update(state, action, reward, next_state, done)
             
             state = next_state
             total_reward += reward
@@ -113,11 +134,16 @@ def train():
         steps_history.append(steps)
     
     # Save training results
-    np.save('results/rewards.npy', rewards_history)
-    np.save('results/steps.npy', steps_history)
-    np.save('results/q_table.npy', agent.q_table)
+    np.save(f'results/{agent_type}_rewards.npy', rewards_history)
+    np.save(f'results/{agent_type}_steps.npy', steps_history)
     np.save('results/exploration_rates.npy', exploration_rates)
     np.save('results/exploration_history.npy', np.array(agent.exploration_history))
+    
+    # Save agent-specific data
+    if agent_type == "q_learning":
+        np.save('results/q_table.npy', agent.q_table)
+    elif agent_type == "policy_gradient":
+        agent.save('results/policy_net.pth')
     
     # Save the complete maze state as a dictionary
     maze_state = {
@@ -135,6 +161,7 @@ def train():
     
     # Plot training results
     plt.figure(figsize=(15, 5))
+    plt.suptitle(f'Training Results for {agent_type.replace("_", " ").title()} Agent')
     
     # Reward plot
     plt.subplot(1, 3, 1)
@@ -175,4 +202,11 @@ def train():
     print("Training completed. Results saved in 'results/' directory.")
 
 if __name__ == "__main__":
-    train()
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Train a reinforcement learning agent on the maze environment')
+    parser.add_argument('--agent', type=str, default='q_learning', choices=['q_learning', 'policy_gradient'],
+                        help='Type of agent to train (q_learning or policy_gradient)')
+    args = parser.parse_args()
+    
+    print(f"Training {args.agent} agent...")
+    train(agent_type=args.agent)

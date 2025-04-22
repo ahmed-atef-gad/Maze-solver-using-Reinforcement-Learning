@@ -2,16 +2,16 @@ import numpy as np
 from maze_env.maze import Maze
 from maze_env.render import MazeRenderer
 from agents.q_learning import QLearningAgent
+from agents.policy_gradient import PolicyGradientAgent
 import pygame
 import time
 import sys
 import os
 import random
+import argparse
+import torch
 
-def evaluate(render=True):
-    # Load trained Q-table
-    q_table = np.load(os.path.join('results', 'q_table.npy'))
-    
+def evaluate(agent_type='q_learning', render=True):
     # Initialize environment with dummy obstacles (will load actual state)
     maze = Maze(width=10, height=10, num_moving_obstacles=0, use_seed=None)
     
@@ -24,13 +24,37 @@ def evaluate(render=True):
         maze.goal = maze_state['goal']
         maze.moving_obstacles = maze_state['moving_obstacles']
     
-    # Create agent with loaded Q-table
-    agent = QLearningAgent(
-        state_space=(maze.height, maze.width),
-        action_space=4,
-        config_path='configs/default.yaml'
-    )
-    agent.q_table = q_table  # Load the trained Q-table
+    # Create and load agent based on type
+    if agent_type == 'q_learning':
+        # Load trained Q-table
+        q_table_path = os.path.join('results', 'q_table.npy')
+        if not os.path.exists(q_table_path):
+            print(f"Error: Q-table file not found at {q_table_path}")
+            return
+            
+        q_table = np.load(q_table_path)
+        agent = QLearningAgent(
+            state_space=(maze.height, maze.width),
+            action_space=4,
+            config_path='configs/default.yaml'
+        )
+        agent.q_table = q_table  # Load the trained Q-table
+    elif agent_type == 'policy_gradient':
+        # Load trained policy network
+        policy_path = os.path.join('results', 'policy_net.pth')
+        if not os.path.exists(policy_path):
+            print(f"Error: Policy network file not found at {policy_path}")
+            return
+            
+        agent = PolicyGradientAgent(
+            state_space=(maze.height, maze.width),
+            action_space=4,
+            config_path='configs/default.yaml'
+        )
+        agent.load(policy_path)  # Load the trained policy network
+    else:
+        print(f"Error: Unknown agent type '{agent_type}'")
+        return
     
     renderer = MazeRenderer(maze)
     
@@ -50,8 +74,10 @@ def evaluate(render=True):
     # Keep track of the path taken
     path_history = [state]
     
-    # Create a temporary Q-table for this evaluation run
-    temp_q_table = np.copy(q_table)
+    # For Q-learning, we can create a temporary Q-table for this evaluation run
+    # This allows us to modify the Q-table during evaluation without affecting the original
+    if agent_type == 'q_learning':
+        temp_q_table = np.copy(agent.q_table)
     
     max_steps = 100
     
@@ -63,7 +89,10 @@ def evaluate(render=True):
         print("Moving obstacles positions:", [(obs_row, obs_col) for (obs_row, obs_col, _, _, _) in maze.moving_obstacles])
 
         # Get action using the agent's policy WITHOUT exploration
-        action = agent.get_action(state, training=False)
+        if agent_type == 'policy_gradient':
+            action = agent.get_action(state, training=False, goal=maze.goal)
+        else:
+            action = agent.get_action(state, training=False)
 
         # Determine the next state based on the chosen action
         row, col = state
@@ -203,4 +232,12 @@ def evaluate(render=True):
     renderer.close()
 
 if __name__ == "__main__":
-    evaluate(render=True)  # Set to False for headless evaluation
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Evaluate a trained reinforcement learning agent')
+    parser.add_argument('--agent', type=str, default='q_learning', choices=['q_learning', 'policy_gradient'],
+                        help='Type of agent to evaluate (q_learning or policy_gradient)')
+    parser.add_argument('--no-render', action='store_true', help='Disable rendering')
+    args = parser.parse_args()
+    
+    print(f"Evaluating {args.agent} agent...")
+    evaluate(agent_type=args.agent, render=not args.no_render)
