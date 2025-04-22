@@ -69,6 +69,9 @@ def train(agent_type="q_learning"):
             # Update moving obstacles first
             maze.update_moving_obstacles()
             
+            # Get current obstacle positions
+            current_obstacle_positions = [(obs_row, obs_col) for (obs_row, obs_col, _, _, _) in maze.moving_obstacles]
+            
             # Take action
             row, col = state
             if action == 0:   # up
@@ -80,33 +83,29 @@ def train(agent_type="q_learning"):
             elif action == 3:  # right
                 next_state = (row, col+1)
             
-            # Check if move is valid
-            if not maze.is_valid_position(*next_state):
-                # Strong penalty for invalid moves
+            # Check if move is valid and not colliding with obstacles
+            if not maze.is_valid_position(*next_state) or next_state in current_obstacle_positions:
+                # Strong penalty for invalid moves or potential collisions
                 reward = -10.0
-                next_state = state  # Stay in place if invalid
+                next_state = state  # Stay in place
                 done = False
             else:
-                # Check if agent collided with a moving obstacle after moving
-                for (obs_row, obs_col, _, _, _) in maze.moving_obstacles:
-                    if next_state[0] == obs_row and next_state[1] == obs_col:
-                        # Agent collided with an obstacle
-                        reward = -50.0  # Large negative reward for collision
-                        done = True
-                        break
-                else:  # This else belongs to the for loop (executes if no break)
-                    # Get reward based on new position
-                    reward = maze.get_reward(*next_state)
-                    
-                    # Extra positive reward for getting closer to goal
-                    current_dist = abs(row - maze.goal[0]) + abs(col - maze.goal[1])
-                    new_dist = abs(next_state[0] - maze.goal[0]) + abs(next_state[1] - maze.goal[1])
-                    if new_dist < current_dist:
-                        reward += 0.5  # Small bonus for progress
-                    
-                    # Check if goal reached
-                    done = (next_state == maze.goal)
-            
+                # Get reward based on new position
+                reward = maze.get_reward(*next_state)
+                
+                # Extra positive reward for getting closer to goal
+                current_dist = abs(row - maze.goal[0]) + abs(col - maze.goal[1])
+                new_dist = abs(next_state[0] - maze.goal[0]) + abs(next_state[1] - maze.goal[1])
+                if new_dist < current_dist:
+                    reward += 0.5  # Small bonus for progress
+                
+                # Check if goal reached
+                done = (next_state == maze.goal)
+                
+                # Small penalty for staying in place (to encourage movement when safe)
+                if next_state == state:
+                    reward -= 1.0
+
             # Detect if agent is stuck
             if state in visited_states:
                 stuck_counter += 1
@@ -204,9 +203,16 @@ def train(agent_type="q_learning"):
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Train a reinforcement learning agent on the maze environment')
-    parser.add_argument('--agent', type=str, default='q_learning', choices=['q_learning', 'policy_gradient'],
+    parser.add_argument('--agent', type=str, required=True, choices=['q_learning', 'policy_gradient'],
                         help='Type of agent to train (q_learning or policy_gradient)')
-    args = parser.parse_args()
     
-    print(f"Training {args.agent} agent...")
-    train(agent_type=args.agent)
+    try:
+        args = parser.parse_args()
+        print(f"Training {args.agent} agent...")
+        train(agent_type=args.agent)
+    except SystemExit:
+        print("\nError: You must specify an agent type using --agent")
+        print("Available agents: q_learning, policy_gradient")
+        print("\nExample usage:")
+        print("  python train.py --agent q_learning")
+        print("  python train.py --agent policy_gradient")

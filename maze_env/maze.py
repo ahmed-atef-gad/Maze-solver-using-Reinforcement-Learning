@@ -48,24 +48,26 @@ class Maze(gym.Env):
             next_state = (row, col+1)
         else:
             next_state = (row, col)
-
-        self.update_moving_obstacles()
-
-        # Check if move is valid
-        if not self.is_valid_position(*next_state):
+    
+        # Get current obstacle positions before moving
+        current_obstacle_positions = [(obs_row, obs_col) for (obs_row, obs_col, _, _, _) in self.moving_obstacles]
+        
+        # Predict the next positions of moving obstacles
+        predicted_obstacle_positions = [
+            (obs_row + dr, obs_col + dc) for (obs_row, obs_col, dr, dc, _) in self.moving_obstacles
+        ]
+    
+        # Check for collision with current and predicted positions of moving obstacles
+        collision = next_state in predicted_obstacle_positions or next_state in current_obstacle_positions
+    
+        if collision:
             reward = -10.0
-            next_state = self.agent_pos
+            next_state = self.agent_pos  # Stay in current position
             done = False
         else:
-            # Check collision with moving obstacles
-            for (obs_row, obs_col, _, _, _) in self.moving_obstacles:
-                if next_state[0] == obs_row and next_state[1] == obs_col:
-                    reward = -50.0
-                    done = True
-                    break
-            else:
-                reward = self.get_reward(*next_state)
-                done = (next_state == self.goal)
+            # Safe to move - get reward and check if goal reached
+            reward = self.get_reward(*next_state)
+            done = (next_state == self.goal)
 
         self.agent_pos = next_state
         obs = np.array(self.agent_pos, dtype=np.int32)
@@ -224,6 +226,9 @@ class Maze(gym.Env):
         """Update positions of moving obstacles"""
         new_obstacles = []
         occupied_positions = set()
+        
+        # Add agent position to occupied positions to prevent obstacles from moving there
+        occupied_positions.add(self.agent_pos)
         
         for obstacle in self.moving_obstacles:
             row, col, dr, dc, steps_to_change = obstacle

@@ -111,7 +111,3 @@ Training results are saved in the `results/` directory:
 - Steps history: Number of steps per episode
 - Exploration rate: Epsilon value over time
 - Exploration/exploitation decisions: Count of explore vs. exploit actions
-
-## Performance
-
-On a standard CPU, training with 50,000-100,000 episodes takes approximately 15-30 minutes depending on your system's performance. The agent typically learns to solve the maze efficiently after 20,000-30,000 episodes.

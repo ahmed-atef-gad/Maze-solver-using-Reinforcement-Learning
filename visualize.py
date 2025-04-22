@@ -183,15 +183,25 @@ def visualize_policy_network():
     plt.show()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Visualize trained agent')
-    parser.add_argument('--agent', type=str, default='q_learning', choices=['q_learning', 'policy_gradient'],
-                        help='Agent type to visualize (q_learning or policy_gradient)')
-    args = parser.parse_args()
+    parser = argparse.ArgumentParser(description='Visualize the trained agent\'s policy')
+    parser.add_argument('--agent', type=str, required=True, choices=['q_learning', 'policy_gradient'],
+                        help='Type of agent to visualize (q_learning or policy_gradient)')
     
-    if args.agent == 'q_learning':
-        visualize_q_table()
-    elif args.agent == 'policy_gradient':
-        visualize_policy_network()
-    else:
-        print(f"Unknown agent type: {args.agent}")
-        print("Available options: q_learning, policy_gradient")
+    try:
+        args = parser.parse_args()
+        print(f"Visualizing {args.agent} agent...")
+        
+        if args.agent == 'q_learning':
+            visualize_q_table()
+        elif args.agent == 'policy_gradient':
+            visualize_policy_network()
+        else:
+            print(f"Unknown agent type: {args.agent}")
+            print("Available options: q_learning, policy_gradient")
+            
+    except SystemExit:
+        print("\nError: You must specify an agent type using --agent")
+        print("Available agents: q_learning, policy_gradient")
+        print("\nExample usage:")
+        print("  python visualize.py --agent q_learning")
+        print("  python visualize.py --agent policy_gradient")
