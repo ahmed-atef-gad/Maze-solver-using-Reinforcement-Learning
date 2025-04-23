@@ -62,7 +62,7 @@ def train(agent_type="q_learning"):
         while not done and steps < 1000:
             # Get action from agent
             if agent_type == "policy_gradient":
-                action = agent.get_action(state, training=True, goal=maze.goal)
+                action = agent.get_action(state, training=True, goal=maze.goal, maze=maze)
             else:
                 action = agent.get_action(state)
             
@@ -71,6 +71,11 @@ def train(agent_type="q_learning"):
             
             # Get current obstacle positions
             current_obstacle_positions = [(obs_row, obs_col) for (obs_row, obs_col, _, _, _) in maze.moving_obstacles]
+            
+            # Predict the next positions of moving obstacles
+            predicted_obstacle_positions = [
+                (obs_row + dr, obs_col + dc) for (obs_row, obs_col, dr, dc, _) in maze.moving_obstacles
+            ]
             
             # Take action
             row, col = state
@@ -83,8 +88,15 @@ def train(agent_type="q_learning"):
             elif action == 3:  # right
                 next_state = (row, col+1)
             
+            # Check for path crossing - if agent and obstacle would swap positions
+            path_crossing = False
+            for i, (obs_row, obs_col, dr, dc, _) in enumerate(maze.moving_obstacles):
+                if (obs_row, obs_col) == next_state and (obs_row + dr, obs_col + dc) == state:
+                    path_crossing = True
+                    break
+            
             # Check if move is valid and not colliding with obstacles
-            if not maze.is_valid_position(*next_state) or next_state in current_obstacle_positions:
+            if not maze.is_valid_position(*next_state) or next_state in current_obstacle_positions or next_state in predicted_obstacle_positions or path_crossing:
                 # Strong penalty for invalid moves or potential collisions
                 reward = -10.0
                 next_state = state  # Stay in place
@@ -120,7 +132,7 @@ def train(agent_type="q_learning"):
 
             # Update agent
             if agent_type == "policy_gradient":
-                agent.update(state, action, reward, next_state, done, goal=maze.goal)
+                agent.update(state, action, reward, next_state, done, goal=maze.goal, maze=maze)
             else:
                 agent.update(state, action, reward, next_state, done)
             

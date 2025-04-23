@@ -59,8 +59,15 @@ class Maze(gym.Env):
     
         # Check for collision with current and predicted positions of moving obstacles
         collision = next_state in predicted_obstacle_positions or next_state in current_obstacle_positions
+        
+        # NEW: Check for path crossing - if agent and obstacle would swap positions
+        path_crossing = False
+        for i, (obs_row, obs_col, dr, dc, _) in enumerate(self.moving_obstacles):
+            if (obs_row, obs_col) == next_state and (obs_row + dr, obs_col + dc) == self.agent_pos:
+                path_crossing = True
+                break
     
-        if collision:
+        if collision or path_crossing:
             reward = -10.0
             next_state = self.agent_pos  # Stay in current position
             done = False
@@ -236,14 +243,19 @@ class Maze(gym.Env):
             
             # Try current direction first
             new_row, new_col = row + dr, col + dc
-            valid_move = (
-                0 <= new_row < self.height and
-                0 <= new_col < self.width and
-                self.grid[new_row, new_col] == 0 and
-                (new_row, new_col) not in occupied_positions and
-                (new_row, new_col) != self.start and
-                (new_row, new_col) != self.goal
-            )
+            
+            # CRITICAL FIX: Explicitly check if the new position would be the agent's position
+            if (new_row, new_col) == self.agent_pos:
+                valid_move = False
+            else:
+                valid_move = (
+                    0 <= new_row < self.height and
+                    0 <= new_col < self.width and
+                    self.grid[new_row, new_col] == 0 and
+                    (new_row, new_col) not in occupied_positions and
+                    (new_row, new_col) != self.start and
+                    (new_row, new_col) != self.goal
+                )
             
             # If current direction invalid, try random directions
             if not valid_move:
@@ -252,6 +264,11 @@ class Maze(gym.Env):
                 for new_dr, new_dc in directions:
                     potential_row = row + new_dr
                     potential_col = col + new_dc
+                    
+                    # CRITICAL FIX: Explicitly check if the potential position would be the agent's position
+                    if (potential_row, potential_col) == self.agent_pos:
+                        continue
+                        
                     if (0 <= potential_row < self.height and
                         0 <= potential_col < self.width and
                         self.grid[potential_row, potential_col] == 0 and

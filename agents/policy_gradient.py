@@ -1,25 +1,25 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
-from torch.distributions import Categorical
+import numpy as np
 import yaml
-from pathlib import Path
-from typing import Tuple, List, Dict
+from typing import Tuple, List
+import os
 
 class PolicyNetwork(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int):
+    def __init__(self, input_dim, hidden_dim, output_dim):
         super(PolicyNetwork, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, output_dim)
+        self.network = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim),
+            # Remove softmax from here - we'll apply it separately with more control
+        )
     
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return F.softmax(x, dim=-1)
+        return self.network(x)
 
 class PolicyGradientAgent:
     def __init__(self, state_space: Tuple[int, int], action_space: int, config_path: str = None):
@@ -28,151 +28,168 @@ class PolicyGradientAgent:
         else:
             # Default parameters
             self.learning_rate = 0.001
-            self.discount_factor = 0.99
-            self.hidden_dim = 128
-            self.episodes = 10000
-            self.epsilon = 0.9  # Adding epsilon for compatibility with train.py
+            self.gamma = 0.99
+            self.epsilon = 0.9
             self.epsilon_decay = 0.995
             self.min_epsilon = 0.01
+            self.hidden_dim = 128
         
         self.state_space = state_space
         self.action_space = action_space
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        # Initialize policy network
+        # Enhanced state representation: position, goal position
         self.policy = PolicyNetwork(
-            input_dim=4,  # State representation: (row, col, goal_row, goal_col)
+            input_dim=4,  # row, col, goal_row, goal_col
             hidden_dim=self.hidden_dim,
             output_dim=action_space
         ).to(self.device)
         
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.learning_rate)
         
-        # Storage for episode data
+        # Save episode history for training
         self.states = []
         self.actions = []
         self.rewards = []
-        self.log_probs = []
-        
-        # For tracking exploration vs exploitation
         self.exploration_history = []
-    
+        
     def _load_config(self, config_path: str):
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
         self.learning_rate = config.get('pg_learning_rate', 0.001)
-        self.discount_factor = config.get('discount_factor', 0.99)
-        self.hidden_dim = config.get('hidden_dim', 128)
-        self.episodes = config.get('episodes', 10000)
+        self.gamma = config.get('discount_factor', 0.99)
         self.epsilon = config.get('epsilon', 0.9)
         self.epsilon_decay = config.get('epsilon_decay', 0.995)
         self.min_epsilon = config.get('min_epsilon', 0.01)
+        self.hidden_dim = config.get('hidden_dim', 128)
     
-    def _preprocess_state(self, state: Tuple[int, int], goal: Tuple[int, int] = None) -> torch.Tensor:
-        """Convert state tuple to tensor with normalized coordinates"""
+    def _preprocess_state(self, state, goal=None):
+        """Preprocess state for neural network input"""
         row, col = state
+        
+        # Normalize positions to [0,1] range
+        height, width = self.state_space
+        norm_row = row / height
+        norm_col = col / width
+        
         if goal is None:
-            # During evaluation, we don't have access to the goal directly
-            # Use a default goal position (bottom right)
+            # If goal not provided, use default goal
             goal_row, goal_col = self.state_space[0]-1, self.state_space[1]-1
         else:
             goal_row, goal_col = goal
             
-        # Create a feature vector with current position and goal position
-        state_tensor = torch.FloatTensor(
-            [row/self.state_space[0], col/self.state_space[1], 
-             goal_row/self.state_space[0], goal_col/self.state_space[1]]
-        ).to(self.device)
+        norm_goal_row = goal_row / height
+        norm_goal_col = goal_col / width
+        
+        state_tensor = torch.FloatTensor([
+            norm_row, norm_col, norm_goal_row, norm_goal_col
+        ]).to(self.device)
         
         return state_tensor
     
-    def get_action(self, state: Tuple[int, int], training: bool = True, goal: Tuple[int, int] = None) -> int:
+    def get_action(self, state, training=True, goal=None, maze=None):
+        # Check if we've reached the goal state
+        if state == goal:
+            # Return a "no-op" action or the best action to stay in place
+            return np.argmax([0, 0, 0, 0])  # This will just return 0 (up) but won't be used
+        
+        # Use epsilon-greedy exploration during training
+        if training and np.random.random() < self.epsilon:
+            self.exploration_history.append(1)  # 1 for exploration
+            return np.random.randint(self.action_space)
+        
+        self.exploration_history.append(0)  # 0 for exploitation
+        
+        # Preprocess state
         state_tensor = self._preprocess_state(state, goal)
         
-        # Get action probabilities from policy network
+        # Get action logits from policy network
         with torch.no_grad():
-            action_probs = self.policy(state_tensor)
+            logits = self.policy(state_tensor)
+            
+            # Apply softmax with numerical stability
+            logits = logits - torch.max(logits)  # For numerical stability
+            action_probs = torch.softmax(logits, dim=0).cpu().numpy()
+            
+            # Check for NaN values and fix if necessary
+            if np.isnan(action_probs).any():
+                print("Warning: NaN detected in action probabilities, using uniform distribution")
+                action_probs = np.ones(self.action_space) / self.action_space
         
-        # Sample action from probability distribution
-        if training:
-            dist = Categorical(action_probs)
-            action = dist.sample()
-            
-            # For exploration tracking (stochastic policy is always exploring to some degree)
-            # We'll consider it exploration if we didn't take the highest probability action
-            max_prob_action = torch.argmax(action_probs).item()
-            self.exploration_history.append(1 if action.item() != max_prob_action else 0)
-            
-            return action.item()
-        else:
-            # During evaluation, take the most probable action
-            return torch.argmax(action_probs).item()
+        # During evaluation, always choose the best action
+        if not training:
+            return np.argmax(action_probs)
+        
+        # During training, sample from the probability distribution
+        try:
+            return np.random.choice(self.action_space, p=action_probs)
+        except ValueError as e:
+            # Fallback to uniform distribution if there's still an issue
+            print(f"Error in action selection: {e}. Using uniform distribution.")
+            return np.random.randint(self.action_space)
     
-    def store_transition(self, state: Tuple[int, int], action: int, reward: float, goal: Tuple[int, int] = None):
-        """Store transition for later training"""
-        state_tensor = self._preprocess_state(state, goal)
-        action_tensor = torch.tensor([action], device=self.device)
-        
-        # Get log probability of the action taken
-        action_probs = self.policy(state_tensor)
-        dist = Categorical(action_probs)
-        log_prob = dist.log_prob(action_tensor)
-        
-        # Store transition
-        self.states.append(state_tensor)
-        self.actions.append(action_tensor)
+    def update(self, state, action, reward, next_state, done, goal=None, maze=None):
+        # Store the transition
+        self.states.append(self._preprocess_state(state, goal))
+        self.actions.append(action)
         self.rewards.append(reward)
-        self.log_probs.append(log_prob)
-    
-    def update(self, state: Tuple[int, int], action: int, reward: float, 
-               next_state: Tuple[int, int], done: bool, goal: Tuple[int, int] = None):
-        """Store transition and update policy if episode is done"""
-        self.store_transition(state, action, reward, goal)
         
+        # Only update policy at the end of an episode
         if done:
-            self._update_policy()
-    
-    def _update_policy(self):
-        """Update policy network using collected episode data"""
-        if not self.rewards:  # Skip if no data
-            return
+            # Calculate discounted rewards
+            discounted_rewards = []
+            cumulative_reward = 0
+            for reward in reversed(self.rewards):
+                cumulative_reward = reward + self.gamma * cumulative_reward
+                discounted_rewards.insert(0, cumulative_reward)
             
-        # Calculate discounted rewards
-        returns = []
-        R = 0
-        for r in reversed(self.rewards):
-            R = r + self.discount_factor * R
-            returns.insert(0, R)
-        
-        # Normalize returns for stability
-        returns = torch.tensor(returns, device=self.device)
-        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
-        
-        # Calculate loss
-        policy_loss = []
-        for log_prob, R in zip(self.log_probs, returns):
-            policy_loss.append(-log_prob * R)  # Negative because we want to maximize
-        
-        # Update policy
-        self.optimizer.zero_grad()
-        policy_loss = torch.cat(policy_loss).sum()
-        policy_loss.backward()
-        self.optimizer.step()
-        
-        # Decay exploration rate (epsilon)
-        self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
-        
-        # Clear episode data
-        self.states = []
-        self.actions = []
-        self.rewards = []
-        self.log_probs = []
+            # Normalize rewards for stability
+            discounted_rewards = torch.FloatTensor(discounted_rewards).to(self.device)
+            if len(discounted_rewards) > 1:
+                discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / (discounted_rewards.std() + 1e-9)
+            
+            # Calculate loss and update policy
+            policy_loss = []
+            for state_tensor, action, reward in zip(self.states, self.actions, discounted_rewards):
+                logits = self.policy(state_tensor)
+                
+                # Apply softmax with numerical stability
+                logits = logits - torch.max(logits)  # For numerical stability
+                action_probs = torch.softmax(logits, dim=0)
+                
+                # Check for NaN values
+                if torch.isnan(action_probs).any():
+                    print("Warning: NaN detected during update, skipping this sample")
+                    continue
+                
+                selected_action_prob = action_probs[action]
+                
+                # Use log_softmax for better numerical stability
+                log_prob = torch.log(selected_action_prob + 1e-10)  # Add small epsilon to prevent log(0)
+                policy_loss.append(-log_prob * reward)
+            
+            if policy_loss:  # Only update if we have valid samples
+                policy_loss = torch.stack(policy_loss).sum()
+                
+                # Add gradient clipping to prevent exploding gradients
+                self.optimizer.zero_grad()
+                policy_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=1.0)
+                self.optimizer.step()
+            
+            # Clear episode history
+            self.states = []
+            self.actions = []
+            self.rewards = []
+            
+            # Decay exploration rate
+            self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
     
-    def save(self, filepath: str):
-        """Save policy network to file"""
+    def save(self, filepath):
+        """Save the policy network to a file"""
         torch.save(self.policy.state_dict(), filepath)
     
-    def load(self, filepath: str):
-        """Load policy network from file"""
+    def load(self, filepath):
+        """Load the policy network from a file"""
         self.policy.load_state_dict(torch.load(filepath, map_location=self.device))
         self.policy.eval()
