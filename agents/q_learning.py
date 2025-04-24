@@ -2,6 +2,7 @@ import numpy as np
 from typing import Tuple, Dict
 import yaml
 from pathlib import Path
+import os
 
 class QLearningAgent:
     def __init__(self, state_space: Tuple[int, int], action_space: int, config_path: str = None):
@@ -57,5 +58,7 @@ class QLearningAgent:
     
     def save_and_clear_exploration_history(self, filepath: str):
         """Save exploration history to a file and clear it"""
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
         np.save(filepath, np.array(self.exploration_history))
         self.exploration_history = []

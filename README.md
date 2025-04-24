@@ -94,16 +94,25 @@ python visualize.py --agent policy_gradient
 
 You can modify the learning parameters in `configs/default.yaml`:
 
-- `learning_rate`: How quickly the agent updates its Q-values
-- `discount_factor`: How much future rewards are valued
-- `epsilon`: Initial exploration rate
-- `epsilon_decay`: How quickly exploration decreases
-- `min_epsilon`: Minimum exploration rate
-- `episodes`: Number of training episodes
+- `discount_factor`: How much future rewards are valued (0.99)
+- `q_learning_episodes`: Number of training episodes for Q-learning (150,000)
+- `pg_episodes`: Number of training episodes for Policy Gradient (1,000)
+- `learning_rate`: How quickly the agent updates its Q-values (0.2)
+- `epsilon`: Initial exploration rate (0.8)
+- `epsilon_decay`: How quickly exploration decreases (0.995)
+- `min_epsilon`: Minimum exploration rate (0.01)
+- `pg_learning_rate`: Learning rate for Policy Gradient (0.01)
+- `hidden_dim`: Dimension of hidden layers in neural networks (32)
+- `batch_size`: Number of samples per gradient update (128)
+- `memory_size`: Size of the experience replay buffer (10,000)
+- `update_frequency`: Frequency of policy updates (10)
 
 ## Results
 
-Training results are saved in the `results/` directory:
+Training results are saved in the `results/` directory, with separate folders for each agent:
+
+- `results/q_learning/`: Contains results specific to the Q-learning agent
+- `results/policy_gradient/`: Contains results specific to the Policy Gradient agent
 
 - Q-table values (Q-learning): The learned action values for each state
 - Policy network (Policy Gradient): The trained neural network model

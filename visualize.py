@@ -8,10 +8,13 @@ from agents.policy_gradient import PolicyNetwork
 
 # Add arrows to show the best action in each cell
 def visualize_q_table():
+    # Use agent-specific results directory
+    results_dir = os.path.join('results', 'q_learning')
+    
     # Load Q-table and maze
-    q_table_path = os.path.join('results', 'q_table.npy')
+    q_table_path = os.path.join(results_dir, 'q_table.npy')
     if not os.path.exists(q_table_path):
-        print("Q-table file not found. Skipping visualization.")
+        print(f"Q-table file not found at {q_table_path}. Skipping visualization.")
         return
         
     q_table = np.load(q_table_path)
@@ -22,8 +25,8 @@ def visualize_q_table():
     plt.figure(figsize=(12, 6))
     
     # Try to load maze from either format
-    maze_path = os.path.join('results', 'maze.npy')
-    maze_grid_path = os.path.join('results', 'maze_grid.npy')
+    maze_path = os.path.join(results_dir, 'maze.npy')
+    maze_grid_path = os.path.join(results_dir, 'maze_grid.npy')
     
     if os.path.exists(maze_path):
         try:
@@ -72,16 +75,19 @@ def visualize_q_table():
                     plt.arrow(j, i, 0.3, 0, head_width=0.1, head_length=0.1, fc='k', ec='k')
     
     plt.tight_layout()
-    plt.savefig('results/q_table_visualization.png')
+    plt.savefig(os.path.join(results_dir, 'q_table_visualization.png'))
     plt.show()
 
 def visualize_policy_network():
+    # Use agent-specific results directory
+    results_dir = os.path.join('results', 'policy_gradient')
+    
     # Load policy network and maze
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Try to load maze from either format
-    maze_path = os.path.join('results', 'maze.npy')
-    maze_grid_path = os.path.join('results', 'maze_grid.npy')
+    maze_path = os.path.join(results_dir, 'maze.npy')
+    maze_grid_path = os.path.join(results_dir, 'maze_grid.npy')
     
     # Create colormap
     cmap = ListedColormap(['white', 'black'])  # empty, wall
@@ -119,16 +125,15 @@ def visualize_policy_network():
         return
     
     # Load policy network
-    policy_path = os.path.join('results', 'policy_net.pth')
+    policy_path = os.path.join(results_dir, 'policy_net.pth')
     if not os.path.exists(policy_path):
-        print("Policy network file not found. Skipping visualization.")
+        print(f"Policy network file not found at {policy_path}. Skipping visualization.")
         return
     
     # Initialize policy network with the same architecture as in training
     policy = PolicyNetwork(
-        input_dim=4,  # State representation: (row, col, goal_row, goal_col)
-        hidden_dim=128,  # Using default value, should match training
-        output_dim=4  # Four possible actions: up, down, left, right
+        input_dim=12,  # Match the actual training input dimension
+        output_dim=4   # Four possible actions: up, down, left, right
     ).to(device)
     
     # Load trained weights
@@ -149,20 +154,53 @@ def visualize_policy_network():
         for j in range(width):
             if maze_grid[i, j] == 1:  # Skip walls
                 continue
-                
-            # Create state tensor
-            state_tensor = torch.FloatTensor(
-                [i/height, j/width, goal_row/height, goal_col/width]
-            ).to(device)
-            
+
+            # Compute normalized features (must match training)
+            norm_row = i / height
+            norm_col = j / width
+            norm_goal_row = goal_row / height
+            norm_goal_col = goal_col / width
+            goal_distance = abs(i - goal_row) + abs(j - goal_col)
+            norm_goal_distance = goal_distance / (height + width)
+            dir_row = (goal_row - i) / height if i != goal_row else 0
+            dir_col = (goal_col - j) / width if j != goal_col else 0
+
+            # Create state tensor with all 12 features
+            # First 7 features are the same as before
+            # For the remaining 5 features (obstacles and visit penalty), use zeros as placeholders
+            state_tensor = torch.FloatTensor([
+                norm_row, norm_col, norm_goal_row, norm_goal_col,
+                norm_goal_distance, dir_row, dir_col,
+                0.0, 0.0, 0.0, 0.0, 0.0  # Placeholder values for obstacle features and visit penalty
+            ]).to(device)
+
             # Get action probabilities
             with torch.no_grad():
-                action_probs = policy(state_tensor).cpu().numpy()
-            
-            # Store confidence (probability) of best action
-            best_action = np.argmax(action_probs)
-            confidence_grid[i, j] = action_probs[best_action]
-            
+                output = policy(state_tensor)
+                
+                # Handle different possible output shapes
+                if isinstance(output, tuple):
+                    # If output is a tuple (e.g., network returns multiple values)
+                    action_probs = output[0]
+                else:
+                    action_probs = output
+                
+                # Make sure it's the right shape
+                if len(action_probs.shape) > 1:
+                    action_probs = action_probs.squeeze(0)  # Remove batch dimension if present
+                
+                action_probs = action_probs.cpu().numpy()
+                
+                # If we have a single value instead of action probabilities
+                if len(action_probs.shape) == 0 or action_probs.shape[0] == 1:
+                    # Just use a fixed value for visualization
+                    best_action = 0  # Default action
+                    confidence_grid[i, j] = 1.0  # Full confidence
+                else:
+                    # Normal case with multiple action probabilities
+                    best_action = np.argmax(action_probs)
+                    confidence_grid[i, j] = action_probs[best_action]
+
             # Draw arrow for best action
             if best_action == 0:  # up
                 plt.arrow(j, i, 0, -0.3, head_width=0.1, head_length=0.1, fc='k', ec='k')
@@ -179,7 +217,7 @@ def visualize_policy_network():
     plt.title('Learned Policy')
     
     plt.tight_layout()
-    plt.savefig('results/policy_network_visualization.png')
+    plt.savefig(os.path.join(results_dir, 'policy_network_visualization.png'))
     plt.show()
 
 if __name__ == "__main__":

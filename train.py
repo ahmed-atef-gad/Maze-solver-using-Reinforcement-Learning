@@ -11,8 +11,9 @@ import torch
 import argparse
 
 def train(agent_type="q_learning"):
-    # Create results directory if it doesn't exist
-    os.makedirs('results', exist_ok=True)
+    # Create agent-specific results directory if it doesn't exist
+    results_dir = os.path.join('results', agent_type)
+    os.makedirs(results_dir, exist_ok=True)
     
     # Load configuration
     with open('configs/default.yaml', 'r') as f:
@@ -20,6 +21,7 @@ def train(agent_type="q_learning"):
     
     # Initialize environment with moving obstacles
     # Use a different seed each time or no seed for true randomness
+    # use 4 obstacles in q learning, 2 in policy gradient for best results
     maze = Maze(width=10, height=10, num_moving_obstacles=4, use_seed=None)
     
     # Initialize agent based on type
@@ -59,7 +61,7 @@ def train(agent_type="q_learning"):
 
         # In the training loop, modify the section where the agent takes an action:
         
-        while not done and steps < 1000:
+        while not done and steps < 300:
             # Get action from agent
             if agent_type == "policy_gradient":
                 action = agent.get_action(state, training=True, goal=maze.goal, maze=maze)
@@ -102,6 +104,8 @@ def train(agent_type="q_learning"):
                 next_state = state  # Stay in place
                 done = False
             else:
+                # In the training loop, modify the reward calculation:
+                
                 # Get reward based on new position
                 reward = maze.get_reward(*next_state)
                 
@@ -109,10 +113,14 @@ def train(agent_type="q_learning"):
                 current_dist = abs(row - maze.goal[0]) + abs(col - maze.goal[1])
                 new_dist = abs(next_state[0] - maze.goal[0]) + abs(next_state[1] - maze.goal[1])
                 if new_dist < current_dist:
-                    reward += 0.5  # Small bonus for progress
+                    reward += 1.5  # Increased bonus for progress (was 0.5)
+                elif new_dist > current_dist:
+                    reward -= 1.0  # Penalty for moving away from goal
                 
                 # Check if goal reached
-                done = (next_state == maze.goal)
+                if next_state == maze.goal:
+                    reward += 50.0  # Extra bonus for reaching the goal
+                    done = True
                 
                 # Small penalty for staying in place (to encourage movement when safe)
                 if next_state == state:
@@ -145,16 +153,16 @@ def train(agent_type="q_learning"):
         steps_history.append(steps)
     
     # Save training results
-    np.save(f'results/{agent_type}_rewards.npy', rewards_history)
-    np.save(f'results/{agent_type}_steps.npy', steps_history)
-    np.save('results/exploration_rates.npy', exploration_rates)
-    np.save('results/exploration_history.npy', np.array(agent.exploration_history))
+    np.save(os.path.join(results_dir, 'rewards.npy'), rewards_history)
+    np.save(os.path.join(results_dir, 'steps.npy'), steps_history)
+    np.save(os.path.join(results_dir, 'exploration_rates.npy'), exploration_rates)
+    np.save(os.path.join(results_dir, 'exploration_history.npy'), np.array(agent.exploration_history))
     
     # Save agent-specific data
     if agent_type == "q_learning":
-        np.save('results/q_table.npy', agent.q_table)
+        np.save(os.path.join(results_dir, 'q_table.npy'), agent.q_table)
     elif agent_type == "policy_gradient":
-        agent.save('results/policy_net.pth')
+        agent.save(os.path.join(results_dir, 'policy_net.pth'))
     
     # Save the complete maze state as a dictionary
     maze_state = {
@@ -165,10 +173,10 @@ def train(agent_type="q_learning"):
         'height': maze.height,
         'moving_obstacles': maze.moving_obstacles
     }
-    np.save('results/maze.npy', maze_state)
+    np.save(os.path.join(results_dir, 'maze.npy'), maze_state)
     
     # Also save just the grid for backward compatibility
-    np.save('results/maze_grid.npy', maze.grid)
+    np.save(os.path.join(results_dir, 'maze_grid.npy'), maze.grid)
     
     # Plot training results
     plt.figure(figsize=(15, 5))
@@ -196,7 +204,7 @@ def train(agent_type="q_learning"):
     plt.ylabel('ε value')
     
     plt.tight_layout()
-    plt.savefig('results/training_plot.png')
+    plt.savefig(os.path.join(results_dir, 'training_plot.png'))
     plt.close()
     
     # Exploration vs Exploitation histogram
@@ -207,10 +215,10 @@ def train(agent_type="q_learning"):
     plt.xlabel('Decision Type')
     plt.ylabel('Count')
     plt.tight_layout()
-    plt.savefig('results/exploration_histogram.png')
+    plt.savefig(os.path.join(results_dir, 'exploration_histogram.png'))
     plt.close()
     
-    print("Training completed. Results saved in 'results/' directory.")
+    print(f"Training completed. Results saved in '{results_dir}' directory.")
 
 if __name__ == "__main__":
     # Parse command line arguments

@@ -12,5 +12,8 @@ epsilon_decay: 0.995 # Slightly faster decay
 min_epsilon: 0.01
 
 # Policy Gradient parameters
-pg_learning_rate: 0.001
-hidden_dim: 128
+pg_learning_rate: 0.01 # Higher learning rate for even faster convergence
+hidden_dim: 32 # Reduced hidden dimension for faster computation
+batch_size: 128 # Balanced batch size for stability and speed
+memory_size: 10000 # Reduced memory size for faster access
+update_frequency: 10 # Less frequent updates to reduce computational overhead

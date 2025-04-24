@@ -15,8 +15,11 @@ def evaluate(agent_type='q_learning', render=True):
     # Initialize environment with dummy obstacles (will load actual state)
     maze = Maze(width=10, height=10, num_moving_obstacles=0, use_seed=None)
     
+    # Use agent-specific results directory
+    results_dir = os.path.join('results', agent_type)
+    
     # Load the exact maze state from training
-    maze_grid_path = os.path.join('results', 'maze.npy')
+    maze_grid_path = os.path.join(results_dir, 'maze.npy')
     if os.path.exists(maze_grid_path):
         maze_state = np.load(maze_grid_path, allow_pickle=True).item()
         maze.grid = maze_state['grid']
@@ -27,7 +30,7 @@ def evaluate(agent_type='q_learning', render=True):
     # Create and load agent based on type
     if agent_type == 'q_learning':
         # Load trained Q-table
-        q_table_path = os.path.join('results', 'q_table.npy')
+        q_table_path = os.path.join(results_dir, 'q_table.npy')
         if not os.path.exists(q_table_path):
             print(f"Error: Q-table file not found at {q_table_path}")
             return
@@ -41,7 +44,7 @@ def evaluate(agent_type='q_learning', render=True):
         agent.q_table = q_table  # Load the trained Q-table
     elif agent_type == 'policy_gradient':
         # Load trained policy network
-        policy_path = os.path.join('results', 'policy_net.pth')
+        policy_path = os.path.join(results_dir, 'policy_net.pth')
         if not os.path.exists(policy_path):
             print(f"Error: Policy network file not found at {policy_path}")
             return
