@@ -3,7 +3,7 @@ discount_factor: 0.99
 
 # Training episodes
 q_learning_episodes: 150000 # Episodes for Q-learning
-pg_episodes: 10000 # Episodes for Policy Gradient
+pg_episodes: 5000 # Episodes for Policy Gradient
 
 # Q-learning parameters
 learning_rate: 0.2
