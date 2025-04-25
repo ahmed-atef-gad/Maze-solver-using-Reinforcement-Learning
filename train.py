@@ -22,7 +22,8 @@ def train(agent_type="q_learning"):
     # Initialize environment with moving obstacles
     # Use a different seed each time or no seed for true randomness
     # use 4 obstacles in q learning, 2 in policy gradient for best results
-    maze = Maze(width=10, height=10, num_moving_obstacles=4, use_seed=None)
+    num_obstacles = 2 if agent_type == "policy_gradient" else 4
+    maze = Maze(width=10, height=10, num_moving_obstacles=num_obstacles, use_seed=None)
     
     # Initialize agent based on type
     if agent_type == "q_learning":
