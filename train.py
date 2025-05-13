@@ -231,15 +231,22 @@ def train(agent_type="q_learning"):
 
 
 if __name__ == "__main__":
-    print("Please select an agent type to train:")
-    print("1. Q-Learning")
-    print("2. Policy Gradient")
-    choice = input("Enter 1 or 2: ")
-    if choice == '1':
-        agent_type = "q_learning"
-    elif choice == '2':
-        agent_type = "policy_gradient"
+    parser = argparse.ArgumentParser(description='Train a reinforcement learning agent on the maze environment')
+    parser.add_argument('--agent', type=str, choices=['q_learning', 'policy_gradient'], 
+                        help='Type of agent to train (q_learning or policy_gradient)')
+    args = parser.parse_args()
+    
+    if args.agent:
+        train(agent_type=args.agent)
     else:
-        print("Invalid choice. Defaulting to Q-Learning.")
-        agent_type = "q_learning"
-    train(agent_type)
+        print("Please select an agent type to train:")
+        print("1. Q-Learning")
+        print("2. Policy Gradient")
+        choice = input("Enter 1 or 2: ")
+        
+        if choice == "1":
+            train(agent_type="q_learning")
+        elif choice == "2":
+            train(agent_type="policy_gradient")
+        else:
+            print("Invalid choice. Exiting.")

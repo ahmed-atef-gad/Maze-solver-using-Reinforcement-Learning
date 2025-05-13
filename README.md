@@ -25,7 +25,7 @@ This project implements maze-solving agents using reinforcement learning algorit
   - `policy_gradient.py`: Implements the Policy Gradient algorithm with neural networks
 - `train.py`: Main script for training the agent
 - `evaluate.py`: Script for evaluating the trained agent
-- `visualize.py`: Script for visualizing the Q-table
+- `visualize.py`: Script for visualizing the learned policies and Q-values
 - `configs/`: Configuration files
   - `default.yaml`: Default training parameters
 

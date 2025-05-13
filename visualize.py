@@ -237,14 +237,25 @@ def visualize_policy_network():
 
 
 if __name__ == "__main__":
-    print("Select visualization type:")
-    print("1. Q-Learning Q-table")
-    print("2. Policy Gradient Policy Network")
-    choice = input("Enter your choice (1 or 2): ")
-    if choice == '1':
-        visualize_q_table()
-    elif choice == '2':
-        visualize_policy_network()
+    parser = argparse.ArgumentParser(description='Visualize the learned policy of a trained agent')
+    parser.add_argument('--agent', type=str, choices=['q_learning', 'policy_gradient'],
+                        help='Type of agent to visualize (q_learning or policy_gradient)')
+    args = parser.parse_args()
+    
+    if args.agent:
+        if args.agent == 'q_learning':
+            visualize_q_table()
+        elif args.agent == 'policy_gradient':
+            visualize_policy_network()
     else:
-        print("Invalid choice. defaulting to Q-Learning Q-table.")
-        visualize_q_table()
+        print("Please select an agent type to visualize:")
+        print("1. Q-Learning")
+        print("2. Policy Gradient")
+        choice = input("Enter 1 or 2: ")
+        
+        if choice == "1":
+            visualize_q_table()
+        elif choice == "2":
+            visualize_policy_network()
+        else:
+            print("Invalid choice. Exiting.")
