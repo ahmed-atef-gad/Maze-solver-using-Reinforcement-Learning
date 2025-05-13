@@ -235,7 +235,6 @@ def visualize_policy_network():
     plt.savefig(os.path.join(results_dir, 'policy_network_visualization.png'))
     plt.show()
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Visualize the learned policy of a trained agent')
     parser.add_argument('--agent', type=str, choices=['q_learning', 'policy_gradient'],

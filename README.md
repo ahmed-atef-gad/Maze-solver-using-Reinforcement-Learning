@@ -61,7 +61,9 @@ pip install -r requirements.txt
 2. Train an agent:
 
 ````bash
-python train.py
+python train.py --agent q_learning
+# or
+python train.py --agent policy_gradient
 ````
 
    This will train the specified agent according to the parameters in `configs/default.yaml` and save the model and training metrics to the `results/` directory.
@@ -69,7 +71,9 @@ python train.py
 3. Evaluate the trained agent:
 
 ````bash
-python evaluate.py
+python evaluate.py --agent q_learning
+# or
+python evaluate.py --agent policy_gradient
 ````
 
    This will load the trained model and visualize the agent navigating through the maze.
@@ -77,7 +81,11 @@ python evaluate.py
 4. Visualize the agent's learned policy:
 
 ````bash
-python visualize.py 
+# For Q-learning agent
+python visualize.py --agent q_learning
+
+# For Policy Gradient agent
+python visualize.py --agent policy_gradient
 ````
 
    This will generate a visualization of the learned policy, showing how the agent navigates through the maze. For Q-learning, it displays the Q-values, while for Policy Gradient, it shows the action probabilities from the neural network.
